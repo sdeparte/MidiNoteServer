@@ -14,7 +14,7 @@ namespace MidiNoteServer.Service
         {
             foreach (IMidiOutputDeviceInfo device in MidiDeviceManager.Default.OutputDevices)
             {
-                if (device.Name.Contains("Arduino"))
+                if (!device.Name.Contains("Microsoft GS Wavetable Synth"))
                 {
                     _ = SendMidiNoteAsync(device, midiNote);
                 }
@@ -22,7 +22,6 @@ namespace MidiNoteServer.Service
 
             Console.WriteLine($" [{DateTime.Now}] -- Midi Controller : Note #{midiNote} sended");
         }
-
 
         private async Task SendMidiNoteAsync(IMidiOutputDeviceInfo device, int midiNote)
         {
