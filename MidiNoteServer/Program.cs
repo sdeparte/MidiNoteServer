@@ -1,5 +1,4 @@
-﻿
-using MidiNoteServer.Service;
+﻿using MidiNoteServer.Service;
 using System;
 
 namespace MidiNoteServer
@@ -18,12 +17,15 @@ namespace MidiNoteServer
             Console.WriteLine(" |        Press 'q' to stop Server and close APP         | ");
             Console.WriteLine(" +-------------------------------------------------------+\n");
 
-            HttpServer httpServer = new HttpServer($"http://+:{PORT}/");
+            MidiController midiController = new MidiController();
+
+            HttpServer httpServer = new HttpServer(midiController, $"http://+:{PORT}/");
             httpServer.Start();
 
             while (Console.ReadKey(true).KeyChar != 'q');
 
             httpServer.Stop();
+            midiController.Dispose();
         }
     }
 }

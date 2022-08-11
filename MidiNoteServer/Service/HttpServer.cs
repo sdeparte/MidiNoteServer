@@ -11,17 +11,17 @@ namespace MidiNoteServer.Service
     {
         private const int _handlerThread = 2;
 
-        private readonly HttpListener _listener;
         private readonly MidiController _midiController;
+        private readonly HttpListener _listener;
 
         public bool IsStarted { get { return _listener.IsListening; } }
 
-        public HttpServer(string url)
+        public HttpServer(MidiController midiController, string url)
         {
+            _midiController = midiController;
+
             _listener = new HttpListener();
             _listener.Prefixes.Add(url);
-
-            _midiController = new MidiController();
         }
 
         public void Start()
@@ -87,7 +87,8 @@ namespace MidiNoteServer.Service
                         return;
                     }
 
-                    _midiController.UpMidiNote(int.Parse(note));
+                    _ = _midiController.SendMidiNoteAsync(int.Parse(note));
+
                     Write200Header(context.Response);
                     return;
 

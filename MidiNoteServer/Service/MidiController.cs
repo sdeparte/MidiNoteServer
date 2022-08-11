@@ -4,46 +4,51 @@ using RtMidi.Core.Devices.Infos;
 using RtMidi.Core.Enums;
 using RtMidi.Core.Messages;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace MidiNoteServer.Service
 {
     class MidiController
     {
-        public void UpMidiNote(int midiNote)
+        private List<IMidiOutputDevice> _outputDevices = new List<IMidiOutputDevice>();
+
+        public MidiController()
         {
             foreach (IMidiOutputDeviceInfo device in MidiDeviceManager.Default.OutputDevices)
             {
                 if (!device.Name.Contains("Microsoft GS Wavetable Synth"))
                 {
-                    _ = SendMidiNoteAsync(device, midiNote);
+                    IMidiOutputDevice outputDevice = device.CreateDevice();
+                    outputDevice.Open();
+                    _outputDevices.Add(outputDevice);
                 }
             }
-
-            Console.WriteLine($" [{DateTime.Now}] -- Midi Controller : Note #{midiNote} sended");
         }
 
-        private async Task SendMidiNoteAsync(IMidiOutputDeviceInfo device, int midiNote)
+        public void Dispose()
         {
-            IMidiOutputDevice outputDevice = device.CreateDevice();
+            foreach (IMidiOutputDevice outputDevice in _outputDevices)
+            {
+                outputDevice.Close();
+            }
+        }
 
-            outputDevice.Open();
+        public async Task SendMidiNoteAsync(int midiNote)
+        {
+            SendMidiNote(midiNote, 127);
 
-            outputDevice.Send(new NoteOnMessage(Channel.Channel1, (Key)midiNote, 127));
+            SendMidiNote(midiNote, 0);
+        }
 
-            await Task.Delay(100);
+        public void SendMidiNote(int midiNote, int velocity)
+        {
+            foreach (IMidiOutputDevice outputDevice in _outputDevices)
+            {
+                outputDevice.Send(new NoteOnMessage(Channel.Channel1, (Key)midiNote, velocity));
+            }
 
-            outputDevice.Send(new NoteOffMessage(Channel.Channel1, (Key)midiNote, 0));
-
-            await Task.Delay(5000);
-
-            outputDevice.Send(new NoteOnMessage(Channel.Channel1, (Key)midiNote, 127));
-
-            await Task.Delay(100);
-
-            outputDevice.Send(new NoteOffMessage(Channel.Channel1, (Key)midiNote, 0));
-
-            outputDevice.Close();
+            Console.WriteLine($" [{DateTime.Now}] -- Midi Controller : Note #{midiNote}:{velocity} sended");
         }
     }
 }
