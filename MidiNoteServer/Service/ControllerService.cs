@@ -11,6 +11,7 @@ namespace MidiNoteServer.Service
         private readonly MidiController _midiController;
         private readonly Controller _controller;
         private readonly Timer _timer;
+        private readonly InputPerSecondService _inputPerSecondService;
 
         private bool _lastStateRightThumb = false;
 
@@ -67,11 +68,15 @@ namespace MidiNoteServer.Service
                 throw new Exception("No XInput controller installed");
             }
 
+            _inputPerSecondService = new InputPerSecondService(5.0, 4.0);
+            _inputPerSecondService.ThresholdRaised += InputPerSecondService_ThresholdRaised;
+
             _timer = new Timer(ControllerTimerCallback, null, 0, 50);
         }
 
         public void Dispose()
         {
+            _inputPerSecondService?.Dispose();
             _timer?.Dispose();
         }
 
@@ -92,42 +97,60 @@ namespace MidiNoteServer.Service
                 y: (Math.Abs((float)gamepad.RightThumbY) < deadband) ? 0 : (float)gamepad.RightThumbY / short.MaxValue * 100
             );
 
-            TestButtonState(rightThumb.X != 0 || rightThumb.Y != 0, ref _lastStateRightThumb, 120);
+            TestButtonState(rightThumb.X != 0 || rightThumb.Y != 0, ref _lastStateRightThumb, 120, false);
 
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.A), ref _lastStateButtonA, 100);
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.B), ref _lastStateButtonB, 101);
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.X), ref _lastStateButtonX, 102);
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.Y), ref _lastStateButtonY, 103);
 
-            TestButtonState(rightThumb.X > 50, ref _lastStateRightThumbXPositive, 104);
-            TestButtonState(rightThumb.X < -50, ref _lastStateRightThumbXNegative, 105);
-            TestButtonState(rightThumb.Y > 50, ref _lastStateRightThumbYPositive, 106);
-            TestButtonState(rightThumb.Y < -50, ref _lastStateRightThumbYNegative, 107);
+            TestButtonState(rightThumb.X > 50, ref _lastStateRightThumbXPositive, 104, false);
+            TestButtonState(rightThumb.X < -50, ref _lastStateRightThumbXNegative, 105, false);
+            TestButtonState(rightThumb.Y > 50, ref _lastStateRightThumbYPositive, 106, false);
+            TestButtonState(rightThumb.Y < -50, ref _lastStateRightThumbYNegative, 107, false);
 
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.RightShoulder), ref _lastStateButtonRightShoulder, 108);
             TestButtonState(gamepad.RightTrigger > 0, ref _lastStateButtonRightTrigger, 109);
 
-            TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.DPadUp) || buttonFlags.HasFlag(GamepadButtonFlags.DPadDown) || buttonFlags.HasFlag(GamepadButtonFlags.DPadLeft) || buttonFlags.HasFlag(GamepadButtonFlags.DPadRight), ref _lastStateLeftThumb, 121);
+            TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.DPadUp) || buttonFlags.HasFlag(GamepadButtonFlags.DPadDown) || buttonFlags.HasFlag(GamepadButtonFlags.DPadLeft) || buttonFlags.HasFlag(GamepadButtonFlags.DPadRight), ref _lastStateLeftThumb, 121, false);
 
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.DPadUp), ref _lastStateButtonDPadUp, 110);
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.DPadDown), ref _lastStateButtonDPadDown, 111);
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.DPadLeft), ref _lastStateButtonDPadLeft, 112);
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.DPadRight), ref _lastStateButtonDPadRight, 113);
 
-            TestButtonState(leftThumb.X > 50, ref _lastStateLeftThumbXPositive, 114);
-            TestButtonState(leftThumb.X < -50, ref _lastStateLeftThumbXNegative, 115);
-            TestButtonState(leftThumb.Y > 50, ref _lastStateLeftThumbYPositive, 116);
-            TestButtonState(leftThumb.Y < -50, ref _lastStateLeftThumbYNegative, 117);
+            TestButtonState(leftThumb.X > 50, ref _lastStateLeftThumbXPositive, 114, false);
+            TestButtonState(leftThumb.X < -50, ref _lastStateLeftThumbXNegative, 115, false);
+            TestButtonState(leftThumb.Y > 50, ref _lastStateLeftThumbYPositive, 116, false);
+            TestButtonState(leftThumb.Y < -50, ref _lastStateLeftThumbYNegative, 117, false);
 
             TestButtonState(buttonFlags.HasFlag(GamepadButtonFlags.LeftShoulder), ref _lastStateButtonLeftShoulder, 118);
             TestButtonState(gamepad.LeftTrigger > 0, ref _lastStateButtonLeftTrigger, 119);
         }
 
-        private void TestButtonState(bool condition, ref bool lastState, int midiNote)
+        private void InputPerSecondService_ThresholdRaised(object sender, bool thresholdRaised)
+        {
+            if (thresholdRaised)
+            {
+                _ = _midiController.SendMidiNoteAsync(12);
+            }
+            else
+            {
+                _ = _midiController.SendMidiNoteAsync(12);
+            }
+        }
+
+        private void TestButtonState(bool condition, ref bool lastState, int midiNote, bool inputPerSecond = true)
         {
             if (condition && !lastState)
             {
                 _midiController.SendMidiNote(midiNote, 127);
+
+                if (inputPerSecond)
+                {
+                    _inputPerSecondService.AddInput();
+                }
+
                 lastState = true;
             }
             else if (!condition && lastState)
