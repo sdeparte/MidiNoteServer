@@ -55,13 +55,13 @@ namespace MidiNoteServer.Service
             if (ips > _threshold && !_thresholdRaised)
             {
                 _thresholdRaised = true;
-                Console.WriteLine($" [{DateTime.Now}] -- InputPerSecond : Threshod raised : {_thresholdRaised}");
+                Console.WriteLine($" [{DateTime.Now}] -- Input Per Second Service : Threshod raised : {_thresholdRaised}");
                 ThresholdRaised?.Invoke(this, _thresholdRaised);
             }
             else if (ips <= _threshold && _thresholdRaised)
             {
                 _thresholdRaised = false;
-                Console.WriteLine($" [{DateTime.Now}] -- InputPerSecond : Threshod raised : {_thresholdRaised}");
+                Console.WriteLine($" [{DateTime.Now}] -- Input Per Second Service  : Threshod raised : {_thresholdRaised}");
                 ThresholdRaised?.Invoke(this, _thresholdRaised);
             }
         }

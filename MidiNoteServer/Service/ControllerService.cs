@@ -6,12 +6,15 @@ namespace MidiNoteServer.Service
 {
     class ControllerService
     {
-        private const int deadband = 2500;
+        private Controller[] _controllers = new[] { new Controller(UserIndex.One), new Controller(UserIndex.Two), new Controller(UserIndex.Three), new Controller(UserIndex.Four) };
+        private const int _deadband = 2500;
 
         private readonly MidiController _midiController;
-        private readonly Controller _controller;
-        private readonly Timer _timer;
-        private readonly InputPerSecondService _inputPerSecondService;
+
+        private Controller _controller;
+        private Timer _connectionTimer;
+        private Timer _inputTimer;
+        private InputPerSecondService _inputPerSecondService;
 
         private bool _lastStateRightThumb = false;
 
@@ -46,55 +49,75 @@ namespace MidiNoteServer.Service
         public ControllerService(MidiController midiController)
         {
             _midiController = midiController;
+            Connect();
+        }
 
-            Controller[] controllers = new[] {
-                new Controller(UserIndex.One),
-                new Controller(UserIndex.Two),
-                new Controller(UserIndex.Three),
-                new Controller(UserIndex.Four)
-            };
+        private void Connect()
+        {
+            _inputTimer?.Dispose();
+            _inputTimer = null;
 
-            foreach (var selectControler in controllers)
-            {
-                if (selectControler.IsConnected)
-                {
-                    _controller = selectControler;
-                    break;
-                }
-            }
+            _connectionTimer = new Timer(ConnectionTimerCallback, null, 0, 500);
 
-            if (_controller == null)
-            {
-                throw new Exception("No XInput controller installed");
-            }
-
-            _inputPerSecondService = new InputPerSecondService(5.0, 4.0);
-            _inputPerSecondService.ThresholdRaised += InputPerSecondService_ThresholdRaised;
-
-            _timer = new Timer(ControllerTimerCallback, null, 0, 50);
+            Console.WriteLine($" [{DateTime.Now}] Controller Service : Connection thread started");
         }
 
         public void Dispose()
         {
             _inputPerSecondService?.Dispose();
-            _timer?.Dispose();
+
+            _connectionTimer?.Dispose();
+            _connectionTimer = null;
+
+            _inputTimer?.Dispose();
+            _inputTimer = null;
         }
 
+        private void ConnectionTimerCallback(Object source)
+        {
+            _controller = null;
+
+            foreach (Controller controller in _controllers)
+            {
+                if (controller.IsConnected)
+                {
+                    _controller = controller;
+
+                    _inputPerSecondService = new InputPerSecondService(5.0, 4.0);
+                    _inputPerSecondService.ThresholdRaised += InputPerSecondService_ThresholdRaised;
+
+                    _inputTimer = new Timer(ControllerTimerCallback, null, 0, 50);
+
+                    Console.WriteLine($" [{DateTime.Now}] Controller Service : Connected");
+
+                    _connectionTimer?.Dispose();
+                    _connectionTimer = null;
+
+                    return;
+                }
+            }
+        }
 
         private void ControllerTimerCallback(Object source)
         {
+            if (_controller == null || !_controller.IsConnected)
+            {
+                Connect();
+                return;
+            }
+
             Gamepad gamepad = _controller.GetState().Gamepad;
 
             GamepadButtonFlags buttonFlags = gamepad.Buttons;
 
             Point leftThumb = new Point(
-                x: (Math.Abs((float)gamepad.LeftThumbX) < deadband) ? 0 : (float)gamepad.LeftThumbX / short.MinValue * -100,
-                y: (Math.Abs((float)gamepad.LeftThumbY) < deadband) ? 0 : (float)gamepad.LeftThumbY / short.MaxValue * 100
+                x: (Math.Abs((float)gamepad.LeftThumbX) < _deadband) ? 0 : (float)gamepad.LeftThumbX / short.MinValue * -100,
+                y: (Math.Abs((float)gamepad.LeftThumbY) < _deadband) ? 0 : (float)gamepad.LeftThumbY / short.MaxValue * 100
             );
 
             Point rightThumb = new Point(
-                x: (Math.Abs((float)gamepad.RightThumbX) < deadband) ? 0 : (float)gamepad.RightThumbX / short.MaxValue * 100,
-                y: (Math.Abs((float)gamepad.RightThumbY) < deadband) ? 0 : (float)gamepad.RightThumbY / short.MaxValue * 100
+                x: (Math.Abs((float)gamepad.RightThumbX) < _deadband) ? 0 : (float)gamepad.RightThumbX / short.MaxValue * 100,
+                y: (Math.Abs((float)gamepad.RightThumbY) < _deadband) ? 0 : (float)gamepad.RightThumbY / short.MaxValue * 100
             );
 
             TestButtonState(rightThumb.X != 0 || rightThumb.Y != 0, ref _lastStateRightThumb, 120, false);
